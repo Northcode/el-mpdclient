@@ -61,9 +61,10 @@
   (dolist (song playlist)
     (insert (format
 	     "%-3s %s"
-	     (if (= current-song (plist-get song 'Id))
-		 ">"
-	       " ")
+	     (if current-song
+		 (if (= current-song (plist-get song 'Id))
+		     ">"
+		   " ") " ")
 	     (concat (mpdclient-format-song song longest-columns) "\n")))
     )
   )
@@ -73,14 +74,17 @@
   (let ((linelength (+ (apply '+ longest) 4)))
     
     ;; (print (mpd-get-status conn))
-    (insert (concat "\nNow playing: \n"
-		    "    "
-		    (mpdclient-format-song (mpd-get-current-song conn) longest) "\n"
-		    "    "
-		    (format (concat "[%-" (number-to-string linelength) "s]")
-			    (mpdclient-make-elapsed-line (mpd-get-status conn) linelength)) "\n"))
+    (let ((current-song (mpd-get-current-song conn)))
+
+      (if current-song
+	  (insert (concat "\nNow playing: \n"
+			  "    "
+			  (mpdclient-format-song (mpd-get-current-song conn) longest) "\n"
+			  "    "
+			  (format (concat "[%-" (number-to-string linelength) "s]")
+				  (mpdclient-make-elapsed-line (mpd-get-status conn) linelength)) "\n"))))
+      )
     )
-  )
 
 (defun mpdclient-print-buffer (conn)
   "Print out mpdclient buffer from connection CONN."
@@ -124,12 +128,12 @@
 	  (define-key map (kbd "k") 'mpdclient-playlist-prev)
 	  (define-key map (kbd "g") 'mpdclient-redisplay)
 	  (define-key map (kbd "p") 'mpdclient-toggle-play)
+	  (define-key map (kbd "C-m") 'mpdclient-play-selected)
 
 	  map
 	  ))
 
   )
-
 
 (defun mpdclient-connect ()
   "Connect mpdclient to mpd and store in local var."
@@ -146,11 +150,9 @@
 (defun mpdclient-redisplay ()
   "Redisplay mpdclient buffer."
   (interactive)
-  (save-excursion
-    (let ((inhibit-read-only t))
-      (erase-buffer)
-      (mpdclient-print-buffer mpdclient-conn)
-      )
+  (let ((inhibit-read-only t))
+    (erase-buffer)
+    (mpdclient-print-buffer mpdclient-conn)
     )
   (move-to-window-line (+ mpdclient-playlist-pos 1))
   )
@@ -164,7 +166,9 @@
 	(next-line))
     (progn
       (message "End of playlist"))
-    ))
+    )
+  (move-to-window-line (+ mpdclient-playlist-pos 1))
+  )
 
 (defun mpdclient-playlist-prev ()
   "Move cursor to previous entry in the playlist."
@@ -175,7 +179,9 @@
 	(previous-line))
     (progn
       (message "Begining of playlist"))
-    ))
+    )
+  (move-to-window-line (+ mpdclient-playlist-pos 1))
+  )
 
 (defun mpdclient-play ()
   "Start playing music!"
@@ -195,6 +201,14 @@
   (if (eql (plist-get (mpd-get-status mpdclient-conn) 'state) 'play)
       (mpdclient-pause)
     (mpdclient-play))
+  )
+
+(defun mpdclient-play-selected ()
+  "Plays selected song from playlist."
+  (interactive)
+  (if (> (length mpdclient-playlist) 0)
+      (mpd-play mpdclient-conn mpdclient-playlist-pos)
+      )
   )
 
 (defun mpdclient-open ()
